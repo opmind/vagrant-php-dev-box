@@ -20,9 +20,14 @@
     - php{{ php_version }}-mysql
     - php{{ php_version }}-intl
     - php{{ php_version }}-cli
+    - php{{ php_version }}-pdo
     - php{{ php_version }}-mcrypt
     - php{{ php_version }}-mbstring
     - php{{ php_version }}-dom
+    - php{{ php_version }}-json
+    - php{{ php_version }}-gd
+    - php{{ php_version }}-imagick
+    - php{{ php_version }}-curl
 
 - name: Enable the MCrypt extension
   shell: phpenmod mcrypt

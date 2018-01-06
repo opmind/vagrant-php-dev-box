@@ -1,0 +1,81 @@
+---
+- name: Create MySQL database for modx
+  mysql_db: name=modx state=present
+
+- name: Create MySQL user for modx
+  mysql_user: name=modx password=modxuser priv=*.*:ALL state=present
+
+- name: Go to home folder and download and install Gitify
+  git: repo=https://github.com/modmore/Gitify.git
+       dest=/vagrant/Gitify
+       update=no
+  become: true
+  become_user: "{{ www_user }}"
+
+- name: Make sure gitify is globally available
+  shell: cd /vagrant/Gitify && echo "export PATH=/vagrant/Gitify/:$PATH" >> ~/.profile && export PATH=/vagrant/Gitify/:$PATH
+  become: true
+  become_user: "{{ www_user }}"
+
+- name: Refresh profile
+  shell: /bin/bash -c "source ~/.profile"
+  become: true
+  become_user: "{{ www_user }}"
+
+- name: Install dependencies and make executable
+  shell: cd /vagrant/Gitify && composer install && sudo chmod +X Gitify
+  become: true
+  become_user: "{{ www_user }}"
+
+- name: Create folder for modx
+  file:
+    path: /vagrant/modx
+    state: directory
+    mode: 0755
+
+- name: Install Pexpect python module
+  apt: name={{ item }} state=present
+  with_items:
+    - python-pexpect
+
+
+- name: Install MODX through Gitify
+  expect:
+    chdir: /vagrant/modx
+    command: /bin/sh "/vagrant/install_gitify.sh"
+    responses:
+      (?i)Database Host: "localhost"
+      (?i)Database Name: "modx"
+      (?i)Database User: "modx"
+      (?i)Database Password: "modxuser"
+      (?i)Database Prefix: "modx1_"
+      (?i)Hostname: "vagrant"
+      (?i)Base URL: "/"
+      (?i)Manager Language: "en"
+      (?i)Manager User: "modx_user"
+      (?i)Manager User Password: "123passWord"
+      (?i)Manager Email: "admin@email.ru"
+    timeout: 500
+    echo: yes
+
+- name: Copy across new php-fpm pool config for modx
+  template:
+    src=php-fpm.conf.j2
+    dest=/etc/php/{{ php_version }}/fpm/pool.d/modx.conf
+  notify:
+    - restart php-fpm
+
+- name: Copy across new virtual host for modx
+  template:
+    src=nginx.conf.j2
+    dest=/etc/nginx/sites-available/modx.conf
+  notify:
+    - restart nginx
+
+- name: Enable new vagrant virtual host for modx
+  file:
+    src=/etc/nginx/sites-available/modx.conf
+    dest=/etc/nginx/sites-enabled/modx.conf
+    state=link
+  notify:
+    - restart nginx
